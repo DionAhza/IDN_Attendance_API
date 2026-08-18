@@ -39,7 +39,7 @@ function getPool() {
  * selalu lewat fungsi ini supaya aman dari SQL injection.
  */
 async function query(sql, params = []) {
-  const [rows] = await getPool().execute(sql, params);
+  const [rows] = await getPool().query(sql, params);
   return rows;
 }
 
