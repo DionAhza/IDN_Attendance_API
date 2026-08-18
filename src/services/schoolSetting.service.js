@@ -14,6 +14,7 @@ const PROTECTED_KEYS = [
   'notify_parent_on_check_out',
   'notify_parent_on_late',
   'notify_parent_on_absent',
+  'teacher_late_tolerance_minutes',
 ];
 
 async function list() {

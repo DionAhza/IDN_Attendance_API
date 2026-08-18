@@ -58,8 +58,14 @@ app.use('/api/school-settings', schoolSettingRoutes);
 const studentAttendanceRoutes = require('./routes/studentAttendance.routes');
 app.use('/api/student-attendance', studentAttendanceRoutes);
 
-// Route modul self-service lain (teacher, parent, dll) akan
-// didaftarkan di sini mulai Phase 10.
+// Self-service guru (Phase 10) — check-in per sesi mengajar (jadwal),
+// riwayat absensi sendiri. Beda dengan student: tidak ada check-out,
+// dan absen terikat ke schedule_id tertentu (bisa berkali-kali sehari).
+const teacherAttendanceRoutes = require('./routes/teacherAttendance.routes');
+app.use('/api/teacher-attendance', teacherAttendanceRoutes);
+
+// Route modul self-service lain (parent, dll) akan didaftarkan di
+// sini mulai Phase 11.
 
 // ==========================================
 // 404 handler

@@ -3,11 +3,12 @@
 REST API absensi untuk IDN Boarding School (siswa & guru), dikonsumsi oleh
 React Web dan React + Capacitor.
 
-Status: **Phase 1–9 selesai** — scaffold, schema database, koneksi DB,
+Status: **Phase 1–10 selesai** — scaffold, schema database, koneksi DB,
 Authentication, **Admin CRUD master data** (classes, subjects, teachers,
-students, schedules, school_settings), dan **Student self-service attendance**
-(check-in/check-out/today/history) sudah jalan. Teacher self-service
-(Phase 10-11) menyusul berikutnya. Lihat
+students, schedules, school_settings), **Student self-service attendance**
+(check-in/check-out/today/history), dan **Teacher self-service attendance**
+(today-schedules/check-in/history) sudah jalan. Parent self-service
+(Phase 11) menyusul berikutnya. Lihat
 `docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
 urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
 didahulukan sebelum self-service, lihat riwayat project) dan
@@ -101,6 +102,33 @@ Catatan implementasi: notifikasi ke parent (`NotificationService`) **belum**
 aktif — sudah ditandai `TODO(Phase 12)` di `studentAttendance.service.js`,
 menyusul setelah provider email diputuskan. Validasi radius GPS juga belum
 aktif (Phase 14); koordinat yang dikirim disimpan apa adanya untuk sekarang.
+
+## Endpoint Teacher Self-Service (Phase 10)
+
+Butuh token role `teacher` (401 tanpa token, 403 kalau role lain).
+`teacher_id` **selalu** diambil dari token, tidak pernah dari body.
+
+Beda penting dari Student self-service: `teacher_attendance` itu
+**per-jadwal per-hari** (unique key `schedule_id + date`), bukan per-guru-
+per-hari — satu guru bisa punya beberapa sesi mengajar dalam sehari,
+masing-masing diabsen terpisah. Tabelnya juga cuma punya `check_in` (tidak
+ada `check_out`) — absen guru = "hadir di sesi ini", bukan "masuk/pulang
+sekolah".
+
+| Endpoint | Catatan |
+|---|---|
+| `GET /api/teacher-attendance/today-schedules` | Jadwal guru **hari ini** (berdasarkan hari WIB sekarang, `is_active=1`), masing-masing digabung status absennya (`attendance: null` kalau belum) |
+| `POST /api/teacher-attendance/check-in` | Body wajib: `schedule_id`. Opsional: `latitude`, `longitude`, `notes`. Ditolak (403) kalau jadwal bukan milik guru ini, (409) kalau jadwal untuk hari lain/nonaktif/sudah diabsen hari ini. Status `present`/`late` dari `start_time` jadwal + toleransi menit (`school_settings.teacher_late_tolerance_minutes`, default 10) |
+| `GET /api/teacher-attendance/history?page=&limit=&date_from=&date_to=&schedule_id=` | Riwayat absen sendiri, terpaginasi, bisa difilter per jadwal |
+
+Catatan migrasi: key `teacher_late_tolerance_minutes` baru ditambahkan ke
+`school_settings` seed. Kalau database sudah ada dari sebelum Phase 10 dan
+belum di-reimport, endpoint tetap jalan dengan fallback default 10 menit di
+kode — tapi supaya kelihatan & bisa diubah dari admin panel, insert manual:
+```sql
+INSERT INTO school_settings (setting_key, setting_value, description) VALUES
+('teacher_late_tolerance_minutes', '10', 'Toleransi telat guru dalam menit dari start_time jadwal');
+```
 
 ## Struktur folder
 

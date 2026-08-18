@@ -299,7 +299,8 @@ INSERT INTO `school_settings` (`setting_key`, `setting_value`, `description`) VA
 ('notify_parent_on_check_in', 'true', 'Kirim notifikasi saat siswa check-in'),
 ('notify_parent_on_check_out', 'true', 'Kirim notifikasi saat siswa check-out'),
 ('notify_parent_on_late', 'true', 'Kirim notifikasi tambahan jika siswa terlambat'),
-('notify_parent_on_absent', 'true', 'Kirim notifikasi jika siswa tidak hadir');
+('notify_parent_on_absent', 'true', 'Kirim notifikasi jika siswa tidak hadir'),
+('teacher_late_tolerance_minutes', '10', 'Toleransi telat guru dalam menit dari start_time jadwal — setelahnya status = late (Phase 10)');
 
 -- ============================================================
 -- END OF SCHEMA
