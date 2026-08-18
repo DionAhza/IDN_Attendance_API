@@ -51,4 +51,35 @@ async function testConnection() {
   return true;
 }
 
-module.exports = { getPool, query, testConnection };
+/**
+ * Jalankan beberapa query dalam satu transaksi.
+ * Dipakai saat sebuah operasi butuh insert/update di lebih dari satu
+ * tabel yang harus sukses/gagal bersamaan (mis. create teacher =
+ * insert ke `users` + insert ke `teachers`).
+ *
+ * Pakai:
+ *   await withTransaction(async (conn) => {
+ *     await conn.execute('INSERT INTO users ...', [...]);
+ *     await conn.execute('INSERT INTO teachers ...', [...]);
+ *   });
+ *
+ * callback menerima `conn` (bukan pool) — di dalam callback selalu
+ * pakai conn.execute(...), JANGAN pakai query()/getPool() lagi,
+ * supaya semua query jalan di koneksi & transaksi yang sama.
+ */
+async function withTransaction(callback) {
+  const conn = await getPool().getConnection();
+  try {
+    await conn.beginTransaction();
+    const result = await callback(conn);
+    await conn.commit();
+    return result;
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+}
+
+module.exports = { getPool, query, testConnection, withTransaction };

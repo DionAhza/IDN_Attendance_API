@@ -3,11 +3,14 @@
 REST API absensi untuk IDN Boarding School (siswa & guru), dikonsumsi oleh
 React Web dan React + Capacitor.
 
-Status: **Phase 1–7 selesai** — scaffold, schema database, koneksi DB, dan
-Authentication (login + JWT + middleware) sudah jalan dan sudah ditest.
-Admin CRUD (students/teachers/classes/dst) menyusul berikutnya, didahulukan
-sebelum fitur self-service siswa/guru/parent. Lihat
-`docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap dan
+Status: **Phase 1–9 selesai** — scaffold, schema database, koneksi DB,
+Authentication, **Admin CRUD master data** (classes, subjects, teachers,
+students, schedules, school_settings), dan **Student self-service attendance**
+(check-in/check-out/today/history) sudah jalan. Teacher self-service
+(Phase 10-11) menyusul berikutnya. Lihat
+`docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
+urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
+didahulukan sebelum self-service, lihat riwayat project) dan
 `docs/TESTING.md` untuk cara test progress saat ini.
 
 ## Cara test progress saat ini
@@ -61,6 +64,43 @@ Buka `http://localhost:3000/api/health` — harus muncul:
 
 Kalau ini sudah jalan, scaffold-nya sudah benar. Belum ada endpoint lain
 yang aktif — itu wajar di tahap ini.
+
+## Endpoint Admin CRUD (Phase 8)
+
+Semua endpoint di bawah ini butuh header `Authorization: Bearer <token>`
+dari admin (`POST /api/auth/login`), dan hanya bisa diakses role `admin`
+(403 kalau role lain).
+
+| Resource | Endpoint | Catatan |
+|---|---|---|
+| Classes | `GET/POST /api/classes`, `GET/PATCH/DELETE /api/classes/:id` | `DELETE` ditolak (409) kalau masih dipakai siswa/jadwal — nonaktifkan saja |
+| Subjects | `GET/POST /api/subjects`, `GET/PATCH/DELETE /api/subjects/:id` | Sama seperti classes, ditolak kalau masih dipakai jadwal |
+| Teachers | `GET/POST /api/teachers`, `GET/PATCH/DELETE /api/teachers/:id` | Create sekaligus bikin akun `users` (role teacher); update bisa reset email/password |
+| Students | `GET/POST /api/students`, `GET/PATCH/DELETE /api/students/:id` | Sama seperti teachers; list bisa difilter `?class_id=` |
+| Schedules | `GET/POST /api/schedules`, `GET/PATCH/DELETE /api/schedules/:id` | Otomatis dicek bentrok jadwal (guru & kelas) di hari/jam yang sama sebelum disimpan; list bisa difilter `?teacher_id=&class_id=&day=` |
+| School Settings | `GET /api/school-settings`, `GET/PUT/DELETE /api/school-settings/:key` | `PUT` = upsert by key (bikin baru kalau belum ada); key inti sistem (jam masuk, GPS, dst) tidak bisa dihapus |
+
+Endpoint list (`GET` koleksi) mendukung `?page=&limit=&search=` dan
+mengembalikan `meta: { page, limit, total, total_pages }` di response,
+terpisah dari `data`.
+
+## Endpoint Student Self-Service (Phase 9)
+
+Butuh token role `student` (401 tanpa token, 403 kalau role lain).
+`student_id` **selalu** diambil dari token, tidak pernah dari body — siswa
+tidak bisa absen atas nama siswa lain.
+
+| Endpoint | Catatan |
+|---|---|
+| `POST /api/student-attendance/check-in` | Body opsional: `latitude`, `longitude`, `accuracy`, `notes`. Status `present`/`late` ditentukan otomatis dari `school_settings.school_start_time`. Ditolak (409) kalau sudah check-in hari ini |
+| `POST /api/student-attendance/check-out` | Ditolak (409) kalau belum check-in hari ini, atau sudah check-out |
+| `GET /api/student-attendance/today` | Data absensi hari ini (atau `check_in: null` kalau belum absen) |
+| `GET /api/student-attendance/history?page=&limit=&date_from=&date_to=` | Riwayat absensi sendiri, terpaginasi |
+
+Catatan implementasi: notifikasi ke parent (`NotificationService`) **belum**
+aktif — sudah ditandai `TODO(Phase 12)` di `studentAttendance.service.js`,
+menyusul setelah provider email diputuskan. Validasi radius GPS juga belum
+aktif (Phase 14); koordinat yang dikirim disimpan apa adanya untuk sekarang.
 
 ## Struktur folder
 

@@ -10,10 +10,24 @@ memastikan semuanya jalan sebelum lanjut ke phase berikutnya.
 - ✅ Login (`POST /api/auth/login`) — dapat JWT
 - ✅ Ambil profil sendiri (`GET /api/auth/me`) — butuh token
 - ✅ Middleware auth menolak request tanpa/token salah (401)
+- ✅ Admin CRUD: classes, subjects, teachers, students, schedules,
+  school_settings (semua butuh token admin, role lain dapat 403)
+- ✅ Schedules otomatis menolak (409) kalau jadwal baru bentrok waktu
+  dengan jadwal guru/kelas yang sudah ada di hari yang sama
+- ✅ Delete ditolak (409) untuk data master yang masih dipakai di tabel
+  lain (mis. kelas yang masih ada siswanya) — by design, supaya histori
+  tidak hilang; gunakan `is_active=false` untuk menonaktifkan
+- ✅ Student self-service: check-in, check-out, today, history
+  (`/api/student-attendance/*`) — butuh token role `student`, 403 untuk
+  role lain
+- ✅ Status present/late saat check-in dihitung otomatis dari
+  `school_settings.school_start_time`, dalam timezone Asia/Jakarta
+- ✅ Double check-in / check-out di hari yang sama ditolak (409), termasuk
+  aman dari race condition (UNIQUE constraint di DB sebagai garda terakhir)
 
 Yang **belum** ada (jangan bingung kalau endpoint-nya belum ada):
-admin CRUD (students/teachers/classes/dst), absensi, notifikasi, QR, GPS —
-menyusul di phase berikutnya.
+teacher self-service (jadwal & absen mengajar), rekap admin/teacher,
+notifikasi ke parent, QR, GPS — menyusul di phase berikutnya.
 
 ## 1. Siapkan environment
 

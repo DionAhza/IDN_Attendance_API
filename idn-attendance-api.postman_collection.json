@@ -5,8 +5,18 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url", "value": "http://localhost:3000" },
-    { "key": "token", "value": "" }
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "student_token",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -14,7 +24,16 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": { "raw": "{{base_url}}/api/health", "host": ["{{base_url}}"], "path": ["api", "health"] }
+        "url": {
+          "raw": "{{base_url}}/api/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
       }
     },
     {
@@ -38,32 +57,77 @@
       ],
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"admin@demo.idn.sch.id\",\n  \"password\": \"Admin123!\"\n}"
         },
-        "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+        "url": {
+          "raw": "{{base_url}}/api/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
       }
     },
     {
       "name": "Auth - Login (wrong password, expect 401)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"admin@demo.idn.sch.id\",\n  \"password\": \"salahpassword\"\n}"
         },
-        "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] }
+        "url": {
+          "raw": "{{base_url}}/api/auth/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
       }
     },
     {
       "name": "Auth - Me (pakai token hasil login)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/auth/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "me"
+          ]
+        }
       }
     },
     {
@@ -71,8 +135,1098 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] }
+        "url": {
+          "raw": "{{base_url}}/api/auth/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "me"
+          ]
+        }
       }
+    },
+    {
+      "name": "Admin - Classes",
+      "item": [
+        {
+          "name": "Classes - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/classes?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "classes?page=1&limit=20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Classes - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/classes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "classes"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"X RPL B\",\n  \"level\": \"X\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Classes - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/classes/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "classes",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Classes - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/classes/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "classes",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"level\": \"X\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Classes - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/classes/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "classes",
+                "1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Subjects",
+      "item": [
+        {
+          "name": "Subjects - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subjects?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subjects?page=1&limit=20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Subjects - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subjects",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subjects"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Basis Data\",\n  \"code\": \"BD-01\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Subjects - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subjects/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subjects",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Subjects - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subjects/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subjects",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Basis Data Lanjut\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Subjects - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/subjects/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "subjects",
+                "1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Teachers",
+      "item": [
+        {
+          "name": "Teachers - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/teachers?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "teachers?page=1&limit=20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Teachers - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/teachers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "teachers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"guru1@demo.idn.sch.id\",\n  \"password\": \"Guru12345!\",\n  \"nip\": \"199001012020121001\",\n  \"full_name\": \"Ahmad Fauzi\",\n  \"phone\": \"081234567890\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Teachers - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/teachers/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "teachers",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Teachers - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/teachers/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "teachers",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"081234567891\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Teachers - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/teachers/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "teachers",
+                "1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Students",
+      "item": [
+        {
+          "name": "Students - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students?page=1&limit=20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Students - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"siswa1@demo.idn.sch.id\",\n  \"password\": \"Siswa12345!\",\n  \"nis\": \"2526001\",\n  \"full_name\": \"Siti Aminah\",\n  \"class_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Students - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Students - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"class_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Students - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students",
+                "1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Schedules",
+      "item": [
+        {
+          "name": "Schedules - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules?page=1&limit=20"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedules - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_id\": 1,\n  \"class_id\": 1,\n  \"subject_id\": 1,\n  \"day\": \"monday\",\n  \"start_time\": \"07:00\",\n  \"end_time\": \"08:30\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Schedules - Create (conflict, expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacher_id\": 1,\n  \"class_id\": 1,\n  \"subject_id\": 1,\n  \"day\": \"monday\",\n  \"start_time\": \"07:30\",\n  \"end_time\": \"09:00\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Schedules - Get by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules",
+                "1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedules - Update",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules",
+                "1"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"end_time\": \"08:45\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Schedules - Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/schedules/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "schedules",
+                "1"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - School Settings",
+      "item": [
+        {
+          "name": "School Settings - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/school-settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "school-settings"
+              ]
+            }
+          }
+        },
+        {
+          "name": "School Settings - Get by Key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/school-settings/school_start_time",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "school-settings",
+                "school_start_time"
+              ]
+            }
+          }
+        },
+        {
+          "name": "School Settings - Upsert (update value)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/school-settings/school_start_time",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "school-settings",
+                "school_start_time"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"setting_value\": \"07:15:00\",\n  \"description\": \"Batas jam masuk sekolah \\u2014 setelah jam ini status = late\"\n}"
+            }
+          }
+        },
+        {
+          "name": "School Settings - Delete (protected key, expect 409)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/school-settings/school_start_time",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "school-settings",
+                "school_start_time"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Student - Attendance (Phase 9)",
+      "item": [
+        {
+          "name": "Setup - Create demo student (pakai admin token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/students",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "students"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"siswa.demo@demo.idn.sch.id\",\n  \"password\": \"Siswa12345!\",\n  \"nis\": \"2526099\",\n  \"full_name\": \"Siswa Demo Phase9\",\n  \"class_id\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth - Login (siswa demo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"siswa.demo@demo.idn.sch.id\",\n  \"password\": \"Siswa12345!\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.data && json.data.token) {",
+                  "        pm.collectionVariables.set('student_token', json.data.token);",
+                  "        console.log('Token siswa tersimpan otomatis ke variable {{student_token}}');",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check-in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/check-in",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "check-in"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Check-in (ulang, expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/check-in",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "check-in"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Today",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/today",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "today"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check-out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/check-out",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "check-out"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Check-out (ulang, expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/check-out",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "check-out"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{student_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/history?page=1&limit=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "history?page=1&limit=10"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Check-in pakai admin token (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/student-attendance/check-in",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "student-attendance",
+                "check-in"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        }
+      ]
     }
   ]
 }
