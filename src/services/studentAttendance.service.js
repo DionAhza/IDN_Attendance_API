@@ -3,6 +3,7 @@ const { AppError } = require('../utils/response');
 const { buildMeta } = require('../utils/pagination');
 const { nowInSchoolTimezone } = require('../utils/time');
 const schoolConfig = require('../config/school');
+const { notify } = require('./notification.service');
 
 /**
  * Ambil profil student dari user_id token JWT. Dipakai supaya
@@ -85,10 +86,24 @@ async function checkIn(userId, payload = {}) {
     }
   }
 
-  // TODO(Phase 12): panggil NotificationService.notify('STUDENT_CHECK_IN', ...)
-  // di sini, best-effort/non-blocking, setelah provider email diputuskan.
+  // Phase 12: Notifikasi ke parent — best-effort, tidak boleh gagalkan response.
+  // Ambil data attendance yang baru saja dibuat untuk dapatkan attendanceId.
+  const todayData = await getToday(userId);
+  const notifPayload = {
+    studentId: student.id,
+    studentName: student.full_name,
+    attendanceId: todayData.id,
+    time: datetime,
+    status,
+  };
+  // Kirim notifikasi CHECK_IN ke semua parent — fire-and-forget
+  notify('STUDENT_CHECK_IN', notifPayload).catch(() => {});
+  // Kalau terlambat, kirim notifikasi tambahan STUDENT_LATE (toggle terpisah)
+  if (status === 'late') {
+    notify('STUDENT_LATE', notifPayload).catch(() => {});
+  }
 
-  return getToday(userId);
+  return todayData;
 }
 
 async function checkOut(userId, payload = {}) {
@@ -130,9 +145,17 @@ async function checkOut(userId, payload = {}) {
     throw new AppError(409, 'Sudah absen pulang hari ini');
   }
 
-  // TODO(Phase 12): panggil NotificationService.notify('STUDENT_CHECK_OUT', ...)
+  // Phase 12: Notifikasi check-out ke parent — best-effort, fire-and-forget
+  const todayData = await getToday(userId);
+  notify('STUDENT_CHECK_OUT', {
+    studentId: student.id,
+    studentName: student.full_name,
+    attendanceId: todayData.id,
+    time: datetime,
+    status: 'present',
+  }).catch(() => {});
 
-  return getToday(userId);
+  return todayData;
 }
 
 async function getToday(userId) {

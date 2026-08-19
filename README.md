@@ -3,12 +3,13 @@
 REST API absensi untuk IDN Boarding School (siswa & guru), dikonsumsi oleh
 React Web dan React + Capacitor.
 
-Status: **Phase 1–11 selesai** — scaffold, schema database, koneksi DB,
+Status: **Phase 1–12 selesai** — scaffold, schema database, koneksi DB,
 Authentication, **Admin CRUD master data** (classes, subjects, teachers,
 students, schedules, school_settings), **Student self-service attendance**
 (check-in/check-out/today/history), **Teacher self-service attendance**
-(today-schedules/check-in/history), dan **Parent self-service** (read-only:
-daftar anak, absensi hari ini & riwayat per anak) sudah jalan. Lihat
+(today-schedules/check-in/history), **Parent self-service** (read-only:
+daftar anak, absensi hari ini & riwayat per anak), dan **Notifikasi email
+ke parent** (otomatis saat siswa check-in/check-out) sudah jalan. Lihat
 `docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
 urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
 didahulukan sebelum self-service, lihat riwayat project) dan
@@ -98,10 +99,12 @@ tidak bisa absen atas nama siswa lain.
 | `GET /api/student-attendance/today` | Data absensi hari ini (atau `check_in: null` kalau belum absen) |
 | `GET /api/student-attendance/history?page=&limit=&date_from=&date_to=` | Riwayat absensi sendiri, terpaginasi |
 
-Catatan implementasi: notifikasi ke parent (`NotificationService`) **belum**
-aktif — sudah ditandai `TODO(Phase 12)` di `studentAttendance.service.js`,
-menyusul setelah provider email diputuskan. Validasi radius GPS juga belum
-aktif (Phase 14); koordinat yang dikirim disimpan apa adanya untuk sekarang.
+Catatan implementasi: **notifikasi ke parent sudah aktif (Phase 12)** — setiap
+check-in/check-out otomatis kirim email ke semua parent yang terhubung via
+`parent_students` (best-effort, tidak menggagalkan response absensi). Toggle
+on/off per jenis notifikasi bisa diatur via `school_settings` (lihat section
+Phase 12 di bawah). Validasi radius GPS belum aktif (Phase 14); koordinat
+yang dikirim disimpan apa adanya untuk sekarang.
 
 ## Endpoint Teacher Self-Service (Phase 10)
 
@@ -142,13 +145,56 @@ dicek lewat tabel `parent_students` (403 kalau bukan anaknya — anti-IDOR).
 | `GET /api/parent/children/:studentId/attendance/today` | Status absen hari ini anak tsb |
 | `GET /api/parent/children/:studentId/attendance/history?page=&limit=&date_from=&date_to=` | Riwayat absen anak tsb, terpaginasi |
 
+## Notifikasi Email ke Parent (Phase 12)
+
+Setiap kali siswa check-in atau check-out, sistem otomatis mengirim email ke
+**semua** parent yang terhubung ke siswa tersebut di tabel `parent_students`.
+
+### Cara kerja
+
+1. **Fire-and-forget** — pengiriman email tidak mempengaruhi response absensi.
+   Kalau email gagal terkirim (provider down, kredensial salah, dll), siswa
+   tetap mendapat response sukses. Error dicatat ke tabel `notification_logs`.
+2. **Toggle per jenis** — admin bisa mematikan notifikasi tertentu via
+   `school_settings`:
+   - `notify_parent_on_check_in` — email saat check-in
+   - `notify_parent_on_check_out` — email saat check-out
+   - `notify_parent_on_late` — email tambahan kalau siswa terlambat
+   - `notify_parent_on_absent` — (belum aktif, butuh cron job terpisah)
+3. **Dua notifikasi saat terlambat** — kalau siswa check-in terlambat, sistem
+   kirim `STUDENT_CHECK_IN` DAN `STUDENT_LATE` (masing-masing bisa di-toggle
+   sendiri).
+
+### Setup email (Gmail App Password)
+
+1. Nyalakan **2-Step Verification** di akun Google.
+2. Buka <https://myaccount.google.com/apppasswords> → buat App Password.
+3. Isi `.env`:
+   ```env
+   EMAIL_PROVIDER=smtp
+   EMAIL_SMTP_HOST=smtp.gmail.com
+   EMAIL_SMTP_PORT=587
+   EMAIL_SMTP_USER=your-email@gmail.com
+   EMAIL_SMTP_PASS=your-16-char-app-password
+   EMAIL_FROM=noreply@idn.sch.id
+   ```
+4. Kalau `EMAIL_SMTP_USER`/`EMAIL_SMTP_PASS` kosong, notifikasi tetap jalan
+   tapi di-log sebagai `failed` tanpa crash.
+
+### Monitoring
+
+Cek tabel `notification_logs` untuk melihat riwayat pengiriman:
+```sql
+SELECT * FROM notification_logs ORDER BY created_at DESC LIMIT 20;
+```
+
 ## Struktur folder
 
 ```
 src/
   config/       -> koneksi DB (Phase 6), school settings (Phase 9)
   controllers/  -> mulai Phase 7
-  services/     -> mulai Phase 9
+  services/     -> mulai Phase 9, notification Phase 12
   routes/       -> mulai Phase 7
   middleware/   -> auth & role middleware, Phase 7
   validators/   -> skema Zod, mulai Phase 8
@@ -172,17 +218,16 @@ tests/          -> Jest + Supertest, Phase 16
 - `zod` — validasi input
 - `helmet`, `cors`, `express-rate-limit` — security dasar
 - `dotenv` — environment variable
+- `nodemailer` — kirim email via SMTP (Phase 12)
 - `jest`, `supertest`, `nodemon` — dev/testing
 
-## Belum termasuk di scaffold ini (menyusul per phase)
+## Belum termasuk (menyusul per phase)
 
-- Koneksi database (Phase 6)
-- Auth & middleware (Phase 7)
-- Endpoint students/schedules/attendance (Phase 8–11)
-- Notification service (Phase 12)
-- QR Code (Phase 13)
-- GPS/geofencing (Phase 14)
+- Rekap/laporan absensi untuk admin & guru (Phase 13)
+- GPS/geofencing — validasi radius (Phase 14)
+- Security review menyeluruh (Phase 15)
 - `vercel.json` & panduan deploy (Phase 17)
+- Cron job `STUDENT_ABSENT` (notifikasi siswa yang tidak hadir)
 
 ## Catatan
 
