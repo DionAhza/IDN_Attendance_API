@@ -167,56 +167,79 @@ function normalizePhoneNumber(rawPhone) {
 }
 
 /**
- * Kirim satu pesan WhatsApp lewat Fonnte REST API.
+ * Kirim satu pesan WhatsApp via Fonnte REST API dengan Timeout & Auto-Retry.
  * Return { success: true } atau { success: false, error: string }.
- * TIDAK throw exception — semua error (network, HTTP, token kosong,
- * response gagal dari Fonnte) ditangkap dan dikembalikan sebagai object.
  */
-async function sendWhatsapp(to, message) {
-  try {
-    const token = process.env.FONNTE_TOKEN;
-    if (!token) {
-      return {
-        success: false,
-        error: 'FONNTE_TOKEN belum dikonfigurasi — isi FONNTE_TOKEN di .env untuk aktifkan notifikasi WhatsApp',
-      };
-    }
-
-    const target = normalizePhoneNumber(to);
-    if (!target) {
-      return { success: false, error: 'Nomor HP parent tidak valid/kosong' };
-    }
-
-    const apiUrl = process.env.FONNTE_API_URL || FONNTE_DEFAULT_API_URL;
-
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: token,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ target, message }).toString(),
-    });
-
-    let body;
-    try {
-      body = await response.json();
-    } catch {
-      body = null;
-    }
-
-    // Fonnte mengembalikan HTTP 200 bahkan untuk sebagian error, jadi
-    // status keberhasilan sebenarnya dicek dari field `status` di body
-    // (true/false), bukan cuma response.ok.
-    if (!response.ok || !body || body.status === false) {
-      const reason = (body && (body.reason || body.message)) || `HTTP ${response.status}`;
-      return { success: false, error: `Fonnte menolak pesan: ${reason}` };
-    }
-
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
+async function sendWhatsApp(rawPhone, text) {
+  const token = (process.env.FONNTE_TOKEN || '').trim();
+  if (!token) {
+    return {
+      success: false,
+      error: 'WhatsApp provider belum dikonfigurasi — isi FONNTE_TOKEN di .env',
+    };
   }
+
+  const phone = normalizePhoneNumber(rawPhone);
+  if (!phone) {
+    return {
+      success: false,
+      error: `Nomor HP tidak valid/kosong: '${rawPhone || ''}'`,
+    };
+  }
+
+  const apiUrl = (process.env.FONNTE_API_URL || '').trim() || FONNTE_DEFAULT_API_URL;
+
+  // Coba maksimal 2 kali jika terjadi fetch failed / timeout jaringan
+  const MAX_RETRIES = 2;
+  let lastError = '';
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: token,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          target: phone,
+          message: text,
+          countryCode: '62', // Default Indonesia
+        }),
+        // Timeout 8 detik agar tidak menggantung serverless Vercel
+        signal: AbortSignal.timeout(8000),
+      });
+
+      const json = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        lastError = json.reason || json.message || `HTTP error ${response.status}`;
+        continue;
+      }
+
+      if (json.status === false) {
+        return {
+          success: false,
+          error: json.reason || json.message || 'Ditolak oleh Fonnte',
+        };
+      }
+
+      return { success: true };
+    } catch (err) {
+      if (err.name === 'TimeoutError') {
+        lastError = `Timeout ke server Fonnte (>8s) (percobaan ${attempt})`;
+      } else {
+        lastError = `Koneksi ke gateway WA gagal: ${err.message || 'fetch failed'}`;
+      }
+
+      // Tunggu 500ms sebelum retry
+      if (attempt < MAX_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+    }
+  }
+
+  return { success: false, error: lastError };
 }
 
 /**
