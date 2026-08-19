@@ -97,4 +97,62 @@ async function remove(id) {
   await db.query('DELETE FROM users WHERE id = ?', [parent.user_id]);
 }
 
-module.exports = { list, getById, create, update, remove };
+// ==========================================
+// Link/unlink parent <-> student (tabel parent_students)
+// ==========================================
+
+/**
+ * Hubungkan parent ke satu student (dipakai supaya notifikasi
+ * check-in/check-out siswa tersebut ikut terkirim ke parent ini).
+ * UNIQUE(parent_id, student_id) di DB jadi garda terakhir kalau ada
+ * race condition / double-submit dari client.
+ */
+async function linkStudent(parentId, { student_id, relationship_type }) {
+  await getById(parentId); // 404 kalau parent tidak ada
+
+  const studentRows = await db.query('SELECT id, full_name FROM students WHERE id = ? LIMIT 1', [student_id]);
+  if (studentRows.length === 0) throw new AppError(404, 'Student tidak ditemukan');
+
+  const existing = await db.query(
+    'SELECT id FROM parent_students WHERE parent_id = ? AND student_id = ? LIMIT 1',
+    [parentId, student_id]
+  );
+  if (existing.length > 0) throw new AppError(409, 'Parent ini sudah terhubung ke student tersebut');
+
+  await db.query(
+    'INSERT INTO parent_students (parent_id, student_id, relationship_type) VALUES (?, ?, ?)',
+    [parentId, student_id, relationship_type ?? null]
+  );
+
+  return listChildren(parentId);
+}
+
+/**
+ * Putuskan relasi parent <-> student tertentu (bukan hapus parent
+ * atau student-nya, cuma baris relasinya di parent_students).
+ */
+async function unlinkStudent(parentId, studentId) {
+  const result = await db.query(
+    'DELETE FROM parent_students WHERE parent_id = ? AND student_id = ?',
+    [parentId, studentId]
+  );
+  if (result.affectedRows === 0) throw new AppError(404, 'Relasi parent-student ini tidak ditemukan');
+}
+
+/**
+ * List semua anak yang terhubung ke parent ini — dipakai untuk
+ * verifikasi setelah link/unlink, dan endpoint GET /:id/students.
+ */
+async function listChildren(parentId) {
+  await getById(parentId); // 404 kalau parent tidak ada
+  return db.query(
+    `SELECT s.id AS student_id, s.full_name, s.nis, ps.relationship_type, ps.created_at AS linked_at
+     FROM parent_students ps
+     JOIN students s ON s.id = ps.student_id
+     WHERE ps.parent_id = ?
+     ORDER BY ps.created_at DESC`,
+    [parentId]
+  );
+}
+
+module.exports = { list, getById, create, update, remove, linkStudent, unlinkStudent, listChildren };

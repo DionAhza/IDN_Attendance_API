@@ -20,4 +20,10 @@ const updateParentSchema = z
     message: 'Minimal 1 field harus diisi untuk update',
   });
 
-module.exports = { createParentSchema, updateParentSchema };
+// Link parent ke student (INSERT ke parent_students).
+const linkStudentSchema = z.object({
+  student_id: z.number().int().positive('student_id wajib diisi dan harus angka positif'),
+  relationship_type: z.string().max(30).optional().nullable(), // 'ayah' / 'ibu' / 'wali', dst
+});
+
+module.exports = { createParentSchema, updateParentSchema, linkStudentSchema };

@@ -45,4 +45,31 @@ async function remove(req, res, next) {
   }
 }
 
-module.exports = { list, getById, create, update, remove };
+async function linkStudent(req, res, next) {
+  try {
+    const data = await parentAdminService.linkStudent(req.params.id, req.body);
+    return success(res, 201, 'Student berhasil dihubungkan ke parent', data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function unlinkStudent(req, res, next) {
+  try {
+    await parentAdminService.unlinkStudent(req.params.id, req.params.studentId);
+    return success(res, 200, 'Relasi parent-student berhasil diputus', null);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function listChildren(req, res, next) {
+  try {
+    const data = await parentAdminService.listChildren(req.params.id);
+    return success(res, 200, 'Daftar anak berhasil diambil', data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+module.exports = { list, getById, create, update, remove, linkStudent, unlinkStudent, listChildren };
