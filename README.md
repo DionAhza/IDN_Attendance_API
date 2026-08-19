@@ -14,10 +14,13 @@ check-in/check-out/terlambat), **GPS geofencing** (tolak absen di luar
 radius sekolah), dan **Face verification** (verifikasi wajah wajib saat
 check-in/out kalau diaktifkan, dengan mekanisme override admin/guru +
 audit trail) sudah jalan. Lihat
-`docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
-urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
-didahulukan sebelum self-service, lihat riwayat project) dan
-`docs/TESTING.md` untuk cara test progress saat ini.
+## 📚 Indeks Dokumentasi
+
+Untuk membaca rincian lengkap arsitektur dan spesifikasi API:
+- 🗄️ **[Dokumentasi Database (schema.sql & ERD)](file:///c:/xampp/htdocs/in-house-training-inovasia/IDN_Attendance_API/docs/DATABASE.md)** — Penjelasan 14 tabel database, tipe data, foreign keys, cascade rules, dan diagram ERD Mermaid.
+- 🚀 **[Dokumentasi Endpoint REST API](file:///c:/xampp/htdocs/in-house-training-inovasia/IDN_Attendance_API/docs/API.md)** — Spesifikasi lengkap seluruh endpoint (Admin CRUD, Student, Teacher, Parent, Biometrik Wajah & Multi-channel Notification).
+- 🧪 **[Panduan Testing & Postman](file:///c:/xampp/htdocs/in-house-training-inovasia/IDN_Attendance_API/docs/TESTING.md)** — Panduan pengujian endpoint dan impor Postman collection.
+- 📐 **[Analisis Arsitektur Sistem](file:///c:/xampp/htdocs/in-house-training-inovasia/IDN_Attendance_API/docs/PHASE1-analisis-arsitektur.md)** — Dokumen perancangan awal sistem dan roadmap.
 
 ## Cara test progress saat ini
 
