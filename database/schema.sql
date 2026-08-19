@@ -283,11 +283,50 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Hash di bawah adalah hash bcrypt ASLI dari password di atas (cost 10),
 -- boleh dipakai untuk testing lokal. GANTI/HAPUS sebelum production.
 INSERT INTO `users` (`email`, `password_hash`, `role`) VALUES
-('admin@demo.idn.sch.id', '$2b$10$aEnruLjSjECtv.mSrVPv1OgcxNkeKtZ5KiK/H6I9zZJb17WhJOkYq', 'admin');
+('admin@demo.idn.sch.id', '$2b$10$aEnruLjSjECtv.mSrVPv1OgcxNkeKtZ5KiK/H6I9zZJb17WhJOkYq', 'admin'),
+-- DEMO DATA: 1 guru — Email: teacher@demo.idn.sch.id / Password: Teacher123!
+('teacher@demo.idn.sch.id', '$2b$10$4uJL0UiDBVnaFNWTRfsfK.ALxpcGh/V9kEtzL1nTSnUDUXKwK5/oq', 'teacher'),
+-- DEMO DATA: 1 siswa — Email: student@demo.idn.sch.id / Password: Student123!
+('student@demo.idn.sch.id', '$2b$10$WkhkyawTkd/WuFtlzJBhRe1t9l//lWOVHajljaHUbH8F3s.vGGwU6', 'student'),
+-- DEMO DATA: 1 parent — Email: parent@demo.idn.sch.id / Password: Parent123!
+('parent@demo.idn.sch.id', '$2b$10$1naqJiqWqGoavcPhxHfihu2G0LM2SqL3MLcOOQNQm.CRbcL3ZNJ7y', 'parent');
 
 -- DEMO DATA: 1 kelas, 1 mapel
 INSERT INTO `classes` (`name`, `level`) VALUES ('X RPL A', 'X');
 INSERT INTO `subjects` (`name`, `code`) VALUES ('Pemrograman Web', 'PW-01');
+
+-- DEMO DATA: profil guru, terhubung ke user role teacher di atas
+-- (email diasumsikan unik dalam seed ini sehingga subquery aman)
+INSERT INTO `teachers` (`user_id`, `nip`, `full_name`, `phone`) VALUES
+((SELECT id FROM `users` WHERE email = 'teacher@demo.idn.sch.id'), '198001012026001', 'Budi Santoso, S.Kom', '081200000001');
+
+-- DEMO DATA: profil siswa, masuk kelas 'X RPL A' di atas
+INSERT INTO `students` (`user_id`, `class_id`, `nis`, `full_name`) VALUES
+((SELECT id FROM `users` WHERE email = 'student@demo.idn.sch.id'),
+ (SELECT id FROM `classes` WHERE name = 'X RPL A'), '2026001', 'Ahmad Fauzi');
+
+-- DEMO DATA: profil parent
+INSERT INTO `parents` (`user_id`, `full_name`, `phone`) VALUES
+((SELECT id FROM `users` WHERE email = 'parent@demo.idn.sch.id'), 'Slamet Riyadi', '081200000099');
+
+-- DEMO DATA: link parent <-> anak (untuk test Phase 11)
+INSERT INTO `parent_students` (`parent_id`, `student_id`, `relationship_type`) VALUES
+((SELECT id FROM `parents` WHERE user_id = (SELECT id FROM `users` WHERE email = 'parent@demo.idn.sch.id')),
+ (SELECT id FROM `students` WHERE nis = '2026001'), 'ayah');
+
+-- DEMO DATA: jadwal mengajar guru di atas untuk SEMUA hari kerja
+-- (Senin-Jumat, 07:00-08:30), supaya endpoint teacher-attendance bisa
+-- langsung dites di hari apa pun tanpa perlu utak-atik tanggal.
+INSERT INTO `schedules` (`teacher_id`, `class_id`, `subject_id`, `day`, `start_time`, `end_time`)
+SELECT
+  (SELECT id FROM `teachers` WHERE nip = '198001012026001'),
+  (SELECT id FROM `classes` WHERE name = 'X RPL A'),
+  (SELECT id FROM `subjects` WHERE code = 'PW-01'),
+  d.day, '07:00:00', '08:30:00'
+FROM (
+  SELECT 'monday' AS day UNION ALL SELECT 'tuesday' UNION ALL SELECT 'wednesday'
+  UNION ALL SELECT 'thursday' UNION ALL SELECT 'friday'
+) AS d;
 
 -- DEMO DATA: school_settings default
 INSERT INTO `school_settings` (`setting_key`, `setting_value`, `description`) VALUES

@@ -64,8 +64,10 @@ app.use('/api/student-attendance', studentAttendanceRoutes);
 const teacherAttendanceRoutes = require('./routes/teacherAttendance.routes');
 app.use('/api/teacher-attendance', teacherAttendanceRoutes);
 
-// Route modul self-service lain (parent, dll) akan didaftarkan di
-// sini mulai Phase 11.
+// Self-service parent (Phase 11) — READ ONLY: daftar anak + lihat
+// absensi anak (today/history). Parent tidak check-in/out sendiri.
+const parentRoutes = require('./routes/parent.routes');
+app.use('/api/parent', parentRoutes);
 
 // ==========================================
 // 404 handler

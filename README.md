@@ -3,12 +3,12 @@
 REST API absensi untuk IDN Boarding School (siswa & guru), dikonsumsi oleh
 React Web dan React + Capacitor.
 
-Status: **Phase 1–10 selesai** — scaffold, schema database, koneksi DB,
+Status: **Phase 1–11 selesai** — scaffold, schema database, koneksi DB,
 Authentication, **Admin CRUD master data** (classes, subjects, teachers,
 students, schedules, school_settings), **Student self-service attendance**
-(check-in/check-out/today/history), dan **Teacher self-service attendance**
-(today-schedules/check-in/history) sudah jalan. Parent self-service
-(Phase 11) menyusul berikutnya. Lihat
+(check-in/check-out/today/history), **Teacher self-service attendance**
+(today-schedules/check-in/history), dan **Parent self-service** (read-only:
+daftar anak, absensi hari ini & riwayat per anak) sudah jalan. Lihat
 `docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
 urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
 didahulukan sebelum self-service, lihat riwayat project) dan
@@ -129,6 +129,18 @@ kode — tapi supaya kelihatan & bisa diubah dari admin panel, insert manual:
 INSERT INTO school_settings (setting_key, setting_value, description) VALUES
 ('teacher_late_tolerance_minutes', '10', 'Toleransi telat guru dalam menit dari start_time jadwal');
 ```
+
+## Endpoint Parent Self-Service (Phase 11)
+
+Butuh token role `parent`. **Read-only** — parent tidak absen sendiri.
+`parent_id` selalu dari token; kepemilikan `studentId` di URL selalu
+dicek lewat tabel `parent_students` (403 kalau bukan anaknya — anti-IDOR).
+
+| Endpoint | Catatan |
+|---|---|
+| `GET /api/parent/children` | Daftar anak (nama, NIS, kelas, `relationship_type`) milik parent yang login |
+| `GET /api/parent/children/:studentId/attendance/today` | Status absen hari ini anak tsb |
+| `GET /api/parent/children/:studentId/attendance/history?page=&limit=&date_from=&date_to=` | Riwayat absen anak tsb, terpaginasi |
 
 ## Struktur folder
 
