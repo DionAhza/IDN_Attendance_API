@@ -3,13 +3,17 @@
 REST API absensi untuk IDN Boarding School (siswa & guru), dikonsumsi oleh
 React Web dan React + Capacitor.
 
-Status: **Phase 1–12 selesai** — scaffold, schema database, koneksi DB,
+Status: **Phase 1–14 selesai** — scaffold, schema database, koneksi DB,
 Authentication, **Admin CRUD master data** (classes, subjects, teachers,
 students, schedules, school_settings), **Student self-service attendance**
 (check-in/check-out/today/history), **Teacher self-service attendance**
 (today-schedules/check-in/history), **Parent self-service** (read-only:
-daftar anak, absensi hari ini & riwayat per anak), dan **Notifikasi email
-ke parent** (otomatis saat siswa check-in/check-out) sudah jalan. Lihat
+daftar anak, absensi hari ini & riwayat per anak), **Notifikasi multi-channel
+ke parent** (email + WhatsApp via Fonnte, otomatis saat siswa
+check-in/check-out/terlambat), **GPS geofencing** (tolak absen di luar
+radius sekolah), dan **Face verification** (verifikasi wajah wajib saat
+check-in/out kalau diaktifkan, dengan mekanisme override admin/guru +
+audit trail) sudah jalan. Lihat
 `docs/PHASE1-analisis-arsitektur.md` untuk roadmap lengkap (catatan:
 urutan phase 8+ di roadmap tersebut sudah direvisi — Admin CRUD
 didahulukan sebelum self-service, lihat riwayat project) dan
@@ -223,11 +227,10 @@ tests/          -> Jest + Supertest, Phase 16
 
 ## Belum termasuk (menyusul per phase)
 
-- Rekap/laporan absensi untuk admin & guru (Phase 13)
-- GPS/geofencing — validasi radius (Phase 14)
+- Rekap/laporan absensi untuk admin & guru (dashboard/export)
 - Security review menyeluruh (Phase 15)
 - `vercel.json` & panduan deploy (Phase 17)
-- Cron job `STUDENT_ABSENT` (notifikasi siswa yang tidak hadir)
+- Cron job `STUDENT_ABSENT` (notifikasi siswa yang tidak hadir tanpa check-in sama sekali)
 
 ## Catatan
 

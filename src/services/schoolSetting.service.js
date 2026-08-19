@@ -15,6 +15,8 @@ const PROTECTED_KEYS = [
   'notify_parent_on_late',
   'notify_parent_on_absent',
   'teacher_late_tolerance_minutes',
+  'face_verification_enabled',
+  'face_match_threshold',
 ];
 
 async function list() {

@@ -1,0 +1,100 @@
+const bcrypt = require('bcryptjs');
+const db = require('../config/database');
+const { AppError } = require('../utils/response');
+const { buildMeta } = require('../utils/pagination');
+
+const BASE_SELECT = `
+  SELECT p.id, p.user_id, p.full_name, p.phone, p.created_at, p.updated_at,
+         u.email, u.is_active,
+         (SELECT COUNT(*) FROM parent_students ps WHERE ps.parent_id = p.id) AS children_count
+  FROM parents p
+  JOIN users u ON u.id = p.user_id
+`;
+
+async function list({ page, limit, offset, search }) {
+  const params = [];
+  let where = '';
+  if (search) {
+    where = 'WHERE p.full_name LIKE ? OR p.phone LIKE ? OR u.email LIKE ?';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const rows = await db.query(
+    `${BASE_SELECT} ${where} ORDER BY p.full_name ASC LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+  const totalRows = await db.query(
+    `SELECT COUNT(*) AS total FROM parents p JOIN users u ON u.id = p.user_id ${where}`,
+    params
+  );
+  return { items: rows, meta: buildMeta({ page, limit, total: totalRows[0].total }) };
+}
+
+async function getById(id) {
+  const rows = await db.query(`${BASE_SELECT} WHERE p.id = ? LIMIT 1`, [id]);
+  if (rows.length === 0) throw new AppError(404, 'Parent tidak ditemukan');
+  return rows[0];
+}
+
+async function create(data) {
+  const existingEmail = await db.query('SELECT id FROM users WHERE email = ? LIMIT 1', [data.email]);
+  if (existingEmail.length > 0) throw new AppError(409, 'Email sudah dipakai');
+
+  const passwordHash = await bcrypt.hash(data.password, 10);
+  const parentId = await db.withTransaction(async (conn) => {
+    const [userResult] = await conn.execute(
+      'INSERT INTO users (email, password_hash, role, is_active) VALUES (?, ?, ?, ?)',
+      [data.email, passwordHash, 'parent', data.is_active ?? true]
+    );
+    const [parentResult] = await conn.execute(
+      'INSERT INTO parents (user_id, full_name, phone) VALUES (?, ?, ?)',
+      [userResult.insertId, data.full_name, data.phone ?? null]
+    );
+    return parentResult.insertId;
+  });
+  return getById(parentId);
+}
+
+async function update(id, data) {
+  const parent = await getById(id);
+  if (data.email) {
+    const existingEmail = await db.query(
+      'SELECT id FROM users WHERE email = ? AND id != ? LIMIT 1',
+      [data.email, parent.user_id]
+    );
+    if (existingEmail.length > 0) throw new AppError(409, 'Email sudah dipakai');
+  }
+
+  await db.withTransaction(async (conn) => {
+    const userFields = [];
+    const userParams = [];
+    if (data.email !== undefined) { userFields.push('email = ?'); userParams.push(data.email); }
+    if (data.password !== undefined) {
+      userFields.push('password_hash = ?');
+      userParams.push(await bcrypt.hash(data.password, 10));
+    }
+    if (data.is_active !== undefined) { userFields.push('is_active = ?'); userParams.push(data.is_active); }
+    if (userFields.length > 0) {
+      userParams.push(parent.user_id);
+      await conn.execute(`UPDATE users SET ${userFields.join(', ')} WHERE id = ?`, userParams);
+    }
+
+    const parentFields = [];
+    const parentParams = [];
+    for (const key of ['full_name', 'phone']) {
+      if (data[key] !== undefined) { parentFields.push(`${key} = ?`); parentParams.push(data[key]); }
+    }
+    if (parentFields.length > 0) {
+      parentParams.push(id);
+      await conn.execute(`UPDATE parents SET ${parentFields.join(', ')} WHERE id = ?`, parentParams);
+    }
+  });
+  return getById(id);
+}
+
+async function remove(id) {
+  const parent = await getById(id);
+  await db.query('DELETE FROM users WHERE id = ?', [parent.user_id]);
+}
+
+module.exports = { list, getById, create, update, remove };
