@@ -44,6 +44,21 @@ async function getBooleanSetting(key, fallback = false) {
 }
 
 /**
+ * Ambil satu nilai setting sebagai number. Dipakai untuk setting numerik
+ * seperti koordinat sekolah, radius geofencing (meter), dan threshold
+ * kemiripan wajah (Phase 14). Kalau value kosong/tidak ada/tidak bisa
+ * di-parse sebagai number, kembalikan fallback — TIDAK throw, supaya
+ * caller yang menentukan apa yang terjadi kalau setting belum diisi
+ * (mis. GPS validation di-skip kalau lat/long sekolah belum ada).
+ */
+async function getNumberSetting(key, fallback = 0) {
+  const value = await getSetting(key, null);
+  if (value === null || value === '') return fallback;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+/**
  * Dipanggil setelah admin create/update/delete school_settings (lihat
  * services/schoolSetting.service.js) supaya perubahan langsung kepakai,
  * tidak nunggu TTL habis.
@@ -52,4 +67,4 @@ function invalidateCache() {
   cache = null;
 }
 
-module.exports = { getSetting, getBooleanSetting, getAllSettings, invalidateCache };
+module.exports = { getSetting, getBooleanSetting, getNumberSetting, getAllSettings, invalidateCache };

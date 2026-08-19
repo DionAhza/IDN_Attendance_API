@@ -69,6 +69,13 @@ app.use('/api/teacher-attendance', teacherAttendanceRoutes);
 const parentRoutes = require('./routes/parent.routes');
 app.use('/api/parent', parentRoutes);
 
+// Face verification (Phase 14) — enroll/verify wajah siswa +
+// override manual admin/guru saat verifikasi gagal. Dipakai
+// berdampingan dengan GPS geofencing (juga Phase 14, lihat
+// studentAttendance.service.js) sebagai lapisan anti "titip absen".
+const faceVerificationRoutes = require('./routes/faceVerification.routes');
+app.use('/api/face-verification', faceVerificationRoutes);
+
 // ==========================================
 // 404 handler
 // ==========================================

@@ -1,19 +1,31 @@
 // ==========================================
-// Notification Service — Phase 12
+// Notification Service — Phase 12 (email) + Phase 13 (multi-channel/WhatsApp)
 // ==========================================
-// Kirim notifikasi email ke parent saat siswa check-in/check-out.
+// Kirim notifikasi ke parent saat siswa check-in/check-out, lewat satu
+// atau lebih CHANNEL (email, whatsapp). Channel baru bisa ditambah di
+// masa depan (mis. push notification) tanpa mengubah pemanggil
+// (studentAttendance.service.js) — mereka cukup panggil notify(type, payload)
+// seperti biasa.
 //
 // Prinsip utama:
-// 1. BEST-EFFORT / NON-BLOCKING — gagal kirim email TIDAK BOLEH
-//    membuat request absensi siswa ikut gagal. Semua error ditangkap
-//    di dalam service ini, dicatat ke `notification_logs`, dan TIDAK
-//    dilempar ke caller.
+// 1. BEST-EFFORT / NON-BLOCKING — gagal kirim notifikasi (channel apa
+//    pun) TIDAK BOLEH membuat request absensi siswa ikut gagal. Semua
+//    error ditangkap di dalam service ini, dicatat ke `notification_logs`,
+//    dan TIDAK dilempar ke caller.
 // 2. Satu siswa bisa punya >1 parent (relasi many-to-many via
 //    parent_students) — kirim ke SEMUA parent yang terhubung.
-// 3. Toggle on/off per jenis notifikasi dibaca dari school_settings
-//    — kalau false, skip tanpa kirim dan tanpa log.
-// 4. Kalau EMAIL_PROVIDER belum dikonfigurasi (kosong), tetap log
-//    sebagai 'failed' dengan pesan jelas, bukan throw exception.
+// 3. Toggle on/off per jenis notifikasi (STUDENT_CHECK_IN, dst) dibaca
+//    dari school_settings — kalau false, skip tanpa kirim dan tanpa log,
+//    berlaku untuk SEMUA channel sekaligus.
+// 4. Channel mana yang aktif ditentukan oleh env `NOTIFICATION_CHANNELS`
+//    (comma-separated, mis. "email,whatsapp"). Kalau kosong, default
+//    hanya "email" (perilaku lama tetap jalan tanpa perlu ubah .env).
+// 5. Tiap channel independen — kalau WhatsApp gagal (mis. token Fonnte
+//    salah), email tetap dicoba dan sebaliknya. Tiap kombinasi
+//    channel x parent di-log terpisah ke notification_logs supaya
+//    gampang ditelusuri channel mana yang bermasalah.
+// 6. Kalau provider channel tertentu belum dikonfigurasi (env kosong),
+//    tetap log sebagai 'failed' dengan pesan jelas, bukan throw exception.
 // ==========================================
 
 const nodemailer = require('nodemailer');
@@ -31,9 +43,35 @@ const TYPE_TO_TOGGLE = {
   STUDENT_ABSENT:    'notify_parent_on_absent',
 };
 
+const DEFAULT_CHANNELS = ['email'];
+const SUPPORTED_CHANNELS = ['email', 'whatsapp'];
+
 // ==========================================
-// Email transporter — lazy-initialized, di-cache supaya tidak
-// bikin koneksi SMTP baru tiap kali kirim email.
+// Channel resolution — channel mana yang aktif secara global
+// ==========================================
+
+/**
+ * Baca `NOTIFICATION_CHANNELS` dari env (mis. "email,whatsapp"),
+ * saring hanya channel yang dikenal sistem, dan buang duplikat.
+ * Kalau env kosong/tidak diisi, fallback ke DEFAULT_CHANNELS (email
+ * saja) supaya deployment lama yang belum set env ini tetap jalan
+ * persis seperti sebelum Phase 13.
+ */
+function getEnabledChannels() {
+  const raw = (process.env.NOTIFICATION_CHANNELS || '').trim();
+  if (!raw) return [...DEFAULT_CHANNELS];
+
+  const channels = raw
+    .split(',')
+    .map((c) => c.trim().toLowerCase())
+    .filter((c) => SUPPORTED_CHANNELS.includes(c));
+
+  return channels.length > 0 ? [...new Set(channels)] : [...DEFAULT_CHANNELS];
+}
+
+// ==========================================
+// EMAIL — transporter Nodemailer, lazy-initialized & di-cache supaya
+// tidak bikin koneksi SMTP baru tiap kali kirim email.
 // ==========================================
 let transporter = null;
 
@@ -71,24 +109,159 @@ function getTransporter() {
   return null;
 }
 
+/**
+ * Kirim satu email. Return { success: true } atau { success: false, error: string }.
+ * TIDAK throw exception — semua error ditangkap di dalam.
+ */
+async function sendEmail(to, subject, html) {
+  try {
+    const transport = getTransporter();
+    if (!transport) {
+      return {
+        success: false,
+        error: 'Email provider belum dikonfigurasi — isi EMAIL_PROVIDER dan kredensial SMTP di .env',
+      };
+    }
+
+    const from = process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || 'noreply@idn.sch.id';
+
+    await transport.sendMail({ from, to, subject, html });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
 // ==========================================
-// Resolve semua parent email untuk satu siswa
+// WHATSAPP (Fonnte) — Phase 13
+// ==========================================
+// Fonnte (https://fonnte.com) adalah gateway WhatsApp API buatan
+// Indonesia — dipilih karena harga terjangkau dan tidak butuh approval
+// business number seperti WhatsApp Cloud API resmi Meta. Cukup satu
+// device WhatsApp yang di-scan sekali di dashboard Fonnte, lalu kirim
+// pesan lewat REST API dengan token device tersebut.
 // ==========================================
 
+const FONNTE_DEFAULT_API_URL = 'https://api.fonnte.com/send';
+
 /**
- * Cari semua parent yang terhubung ke siswa ini, kembalikan array
- * { email, parent_name }. Hanya parent dengan akun aktif (users.is_active=1)
- * yang dikembalikan — parent yang di-nonaktifkan admin tidak dapat email.
+ * Normalisasi nomor HP Indonesia ke format yang diharapkan Fonnte
+ * (awalan 62, tanpa spasi/strip/tanda plus). Nomor lokal yang diawali
+ * '0' diubah jadi '62', dan karakter non-digit dibuang.
+ * Return null kalau setelah dibersihkan nomornya kosong/tidak valid.
  */
-async function getParentEmailsByStudentId(studentId) {
-  return db.query(
-    `SELECT u.email, p.full_name AS parent_name
-     FROM parent_students ps
-     JOIN parents p ON p.id = ps.parent_id
-     JOIN users u ON u.id = p.user_id AND u.is_active = 1
-     WHERE ps.student_id = ?`,
-    [studentId]
-  );
+function normalizePhoneNumber(rawPhone) {
+  if (!rawPhone) return null;
+
+  const digitsOnly = String(rawPhone).replace(/\D/g, '');
+  if (!digitsOnly) return null;
+
+  if (digitsOnly.startsWith('0')) {
+    return `62${digitsOnly.slice(1)}`;
+  }
+  if (digitsOnly.startsWith('62')) {
+    return digitsOnly;
+  }
+  // Nomor tanpa awalan 0/62 (mis. sudah 8xxxxxxxxxx) — anggap lokal, tambah 62.
+  return `62${digitsOnly}`;
+}
+
+/**
+ * Kirim satu pesan WhatsApp lewat Fonnte REST API.
+ * Return { success: true } atau { success: false, error: string }.
+ * TIDAK throw exception — semua error (network, HTTP, token kosong,
+ * response gagal dari Fonnte) ditangkap dan dikembalikan sebagai object.
+ */
+async function sendWhatsapp(to, message) {
+  try {
+    const token = process.env.FONNTE_TOKEN;
+    if (!token) {
+      return {
+        success: false,
+        error: 'FONNTE_TOKEN belum dikonfigurasi — isi FONNTE_TOKEN di .env untuk aktifkan notifikasi WhatsApp',
+      };
+    }
+
+    const target = normalizePhoneNumber(to);
+    if (!target) {
+      return { success: false, error: 'Nomor HP parent tidak valid/kosong' };
+    }
+
+    const apiUrl = process.env.FONNTE_API_URL || FONNTE_DEFAULT_API_URL;
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: token,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ target, message }).toString(),
+    });
+
+    let body;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+
+    // Fonnte mengembalikan HTTP 200 bahkan untuk sebagian error, jadi
+    // status keberhasilan sebenarnya dicek dari field `status` di body
+    // (true/false), bukan cuma response.ok.
+    if (!response.ok || !body || body.status === false) {
+      const reason = (body && (body.reason || body.message)) || `HTTP ${response.status}`;
+      return { success: false, error: `Fonnte menolak pesan: ${reason}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || String(err) };
+  }
+}
+
+/**
+ * Buat pesan WhatsApp (plain text — WhatsApp tidak render HTML) untuk
+ * satu jenis notifikasi. Isi informasinya sama dengan versi email,
+ * cuma diformat ulang jadi teks biasa dengan emoji secukupnya.
+ */
+function composeWhatsappMessage(type, payload) {
+  const { studentName, time, status } = payload;
+  const jamStr = time ? time.split(' ')[1] || time : '-';
+  const statusLabel = status === 'late' ? 'Terlambat ⚠️' : 'Tepat Waktu ✅';
+
+  switch (type) {
+    case 'STUDENT_CHECK_IN':
+      return (
+        `🏫 *Notifikasi Absensi IDN*\n\n` +
+        `Assalamu'alaikum,\n` +
+        `*${studentName}* telah melakukan *absen masuk* hari ini.\n\n` +
+        `Waktu: ${jamStr} WIB\n` +
+        `Status: ${statusLabel}\n\n` +
+        `_Pesan ini dikirim otomatis oleh sistem absensi IDN Boarding School._`
+      );
+
+    case 'STUDENT_CHECK_OUT':
+      return (
+        `🏫 *Notifikasi Absensi IDN*\n\n` +
+        `Assalamu'alaikum,\n` +
+        `*${studentName}* telah melakukan *absen pulang* hari ini.\n\n` +
+        `Waktu: ${jamStr} WIB\n\n` +
+        `_Pesan ini dikirim otomatis oleh sistem absensi IDN Boarding School._`
+      );
+
+    case 'STUDENT_LATE':
+      return (
+        `⚠️ *Peringatan Keterlambatan*\n\n` +
+        `Assalamu'alaikum,\n` +
+        `*${studentName}* tercatat *terlambat* masuk hari ini.\n\n` +
+        `Waktu Check-in: ${jamStr} WIB\n` +
+        `Mohon perhatian dan bimbingannya agar anak dapat hadir tepat waktu.\n\n` +
+        `_Pesan ini dikirim otomatis oleh sistem absensi IDN Boarding School._`
+      );
+
+    default:
+      return `Notifikasi absensi untuk ${studentName} — ${type}, waktu ${jamStr} WIB.`;
+  }
 }
 
 // ==========================================
@@ -171,30 +344,24 @@ function composeEmail(type, payload) {
 }
 
 // ==========================================
-// Kirim email via transporter — satu recipient per panggilan
+// Resolve semua parent (email + phone) untuk satu siswa
 // ==========================================
 
 /**
- * Kirim satu email. Return { success: true } atau { success: false, error: string }.
- * TIDAK throw exception — semua error ditangkap di dalam.
+ * Cari semua parent yang terhubung ke siswa ini, kembalikan array
+ * { email, phone, parent_name }. Hanya parent dengan akun aktif
+ * (users.is_active=1) yang dikembalikan — parent yang di-nonaktifkan
+ * admin tidak dapat notifikasi apa pun.
  */
-async function sendEmail(to, subject, html) {
-  try {
-    const transport = getTransporter();
-    if (!transport) {
-      return {
-        success: false,
-        error: 'Email provider belum dikonfigurasi — isi EMAIL_PROVIDER dan kredensial SMTP di .env',
-      };
-    }
-
-    const from = process.env.EMAIL_FROM || process.env.EMAIL_SMTP_USER || 'noreply@idn.sch.id';
-
-    await transport.sendMail({ from, to, subject, html });
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
-  }
+async function getParentContactsByStudentId(studentId) {
+  return db.query(
+    `SELECT u.email, p.phone, p.full_name AS parent_name
+     FROM parent_students ps
+     JOIN parents p ON p.id = ps.parent_id
+     JOIN users u ON u.id = p.user_id AND u.is_active = 1
+     WHERE ps.student_id = ?`,
+    [studentId]
+  );
 }
 
 // ==========================================
@@ -232,11 +399,76 @@ async function logNotification({ recipient, type, subject, status, provider, att
 }
 
 // ==========================================
+// Kirim satu notifikasi ke satu parent lewat satu channel — dipakai
+// oleh notify() di dalam loop channel x parent.
+// ==========================================
+async function dispatchToChannel({ channel, type, parent, subject, html, text, attendanceId }) {
+  if (channel === 'email') {
+    if (!parent.email) {
+      await logNotification({
+        recipient: `parent:${parent.parent_name || 'unknown'} (no email)`,
+        type,
+        subject,
+        status: 'failed',
+        provider: (process.env.EMAIL_PROVIDER || 'belum-dikonfigurasi').toLowerCase(),
+        attendanceType: 'student',
+        attendanceId,
+        errorMessage: 'Parent tidak memiliki email terdaftar',
+      });
+      return;
+    }
+
+    const result = await sendEmail(parent.email, subject, html);
+    await logNotification({
+      recipient: parent.email,
+      type,
+      subject,
+      status: result.success ? 'success' : 'failed',
+      provider: (process.env.EMAIL_PROVIDER || 'belum-dikonfigurasi').toLowerCase(),
+      attendanceType: 'student',
+      attendanceId,
+      errorMessage: result.error || null,
+    });
+    return;
+  }
+
+  if (channel === 'whatsapp') {
+    if (!parent.phone) {
+      await logNotification({
+        recipient: `parent:${parent.parent_name || 'unknown'} (no phone)`,
+        type,
+        subject: null,
+        status: 'failed',
+        provider: 'fonnte',
+        attendanceType: 'student',
+        attendanceId,
+        errorMessage: 'Parent tidak memiliki nomor HP terdaftar',
+      });
+      return;
+    }
+
+    const result = await sendWhatsapp(parent.phone, text);
+    await logNotification({
+      recipient: normalizePhoneNumber(parent.phone) || parent.phone,
+      type,
+      subject: null,
+      status: result.success ? 'success' : 'failed',
+      provider: 'fonnte',
+      attendanceType: 'student',
+      attendanceId,
+      errorMessage: result.error || null,
+    });
+  }
+}
+
+// ==========================================
 // Fungsi utama: notify(type, payload)
 // ==========================================
 
 /**
  * Entry point notifikasi — dipanggil dari studentAttendance.service.js.
+ * Mengirim ke SEMUA channel yang aktif (lihat getEnabledChannels()) dan
+ * SEMUA parent yang terhubung ke siswa tersebut.
  *
  * @param {string} type - Jenis notifikasi: 'STUDENT_CHECK_IN', 'STUDENT_CHECK_OUT', 'STUDENT_LATE'
  * @param {object} payload - Data notifikasi:
@@ -260,8 +492,10 @@ async function notify(type, payload) {
       }
     }
 
+    const channels = getEnabledChannels();
+
     // 2. Resolve semua parent yang terhubung ke siswa ini
-    const parents = await getParentEmailsByStudentId(payload.studentId);
+    const parents = await getParentContactsByStudentId(payload.studentId);
     if (parents.length === 0) {
       // Siswa tidak punya parent terhubung — log sebagai info, bukan error
       // (bisa terjadi kalau parent belum di-link di parent_students)
@@ -270,7 +504,7 @@ async function notify(type, payload) {
         type,
         subject: null,
         status: 'failed',
-        provider: (process.env.EMAIL_PROVIDER || 'belum-dikonfigurasi').toLowerCase(),
+        provider: channels.join('+'),
         attendanceType: 'student',
         attendanceId: payload.attendanceId,
         errorMessage: 'Siswa tidak memiliki parent yang terhubung di tabel parent_students',
@@ -278,25 +512,24 @@ async function notify(type, payload) {
       return;
     }
 
-    // 3. Compose email sekali (isi sama untuk semua parent)
+    // 3. Compose isi pesan sekali per channel (isi sama untuk semua parent)
     const { subject, html } = composeEmail(type, payload);
+    const text = composeWhatsappMessage(type, payload);
 
-    // 4. Kirim ke SETIAP parent — masing-masing di-log terpisah
-    const provider = (process.env.EMAIL_PROVIDER || 'belum-dikonfigurasi').toLowerCase();
-
-    for (const parent of parents) {
-      const result = await sendEmail(parent.email, subject, html);
-
-      await logNotification({
-        recipient: parent.email,
-        type,
-        subject,
-        status: result.success ? 'success' : 'failed',
-        provider,
-        attendanceType: 'student',
-        attendanceId: payload.attendanceId,
-        errorMessage: result.error || null,
-      });
+    // 4. Kirim ke SETIAP kombinasi channel x parent — masing-masing
+    //    di-log terpisah supaya gampang ditelusuri kalau ada yang gagal.
+    for (const channel of channels) {
+      for (const parent of parents) {
+        await dispatchToChannel({
+          channel,
+          type,
+          parent,
+          subject,
+          html,
+          text,
+          attendanceId: payload.attendanceId,
+        });
+      }
     }
   } catch (err) {
     // Catch-all terakhir — kalau ada error yang lolos dari try-catch internal
@@ -305,4 +538,12 @@ async function notify(type, payload) {
   }
 }
 
-module.exports = { notify };
+module.exports = {
+  notify,
+  // Diekspor tambahan untuk keperluan unit test & reuse — bukan
+  // dipanggil langsung oleh service lain di luar modul ini.
+  getEnabledChannels,
+  composeEmail,
+  composeWhatsappMessage,
+  normalizePhoneNumber,
+};

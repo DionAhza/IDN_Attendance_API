@@ -4,6 +4,7 @@ const { buildMeta } = require('../utils/pagination');
 const { nowInSchoolTimezone } = require('../utils/time');
 const schoolConfig = require('../config/school');
 const { notify } = require('./notification.service');
+const { calculateDistanceMeters } = require('../utils/geo');
 
 /**
  * Ambil profil student dari user_id token JWT. Dipakai supaya
@@ -32,6 +33,66 @@ function determineStatus(currentTime, startTime) {
   return currentTime <= startTime ? 'present' : 'late';
 }
 
+/**
+ * Validasi geofencing GPS (Phase 14) — dipanggil dari checkIn/checkOut
+ * SEBELUM baris attendance ditulis.
+ *
+ * Kalau `gps_validation_enabled` = false, fungsi ini no-op dan
+ * mengembalikan `null` (kolom distance_meters di DB tetap NULL, sama
+ * seperti perilaku sebelum Phase 14 — tidak ada perubahan behavior
+ * untuk sekolah yang belum mengaktifkan fitur ini).
+ *
+ * Kalau aktif:
+ * - latitude/longitude WAJIB dikirim di payload, else 422.
+ * - lokasi sekolah (school_latitude/school_longitude) WAJIB sudah
+ *   dikonfigurasi admin di school_settings, else 500 (ini kesalahan
+ *   konfigurasi server, bukan kesalahan siswa).
+ * - jarak dihitung pakai Haversine; kalau melebihi radius toleransi,
+ *   ditolak dengan 403 beserta jarak aktual supaya siswa/parent tahu
+ *   seberapa jauh dari sekolah.
+ *
+ * Return jarak (meter, dibulatkan 2 desimal) untuk disimpan ke kolom
+ * check_in_distance_meters / check_out_distance_meters.
+ */
+async function validateGeofence(payload = {}) {
+  const gpsEnabled = await schoolConfig.getBooleanSetting('gps_validation_enabled', false);
+  if (!gpsEnabled) {
+    return null;
+  }
+
+  if (typeof payload.latitude !== 'number' || typeof payload.longitude !== 'number') {
+    throw new AppError(422, 'Lokasi (latitude & longitude) wajib diisi karena validasi GPS sedang aktif');
+  }
+
+  const schoolLatitude = await schoolConfig.getNumberSetting('school_latitude', NaN);
+  const schoolLongitude = await schoolConfig.getNumberSetting('school_longitude', NaN);
+  const radiusMeters = await schoolConfig.getNumberSetting('school_radius_meters', 200);
+
+  if (!Number.isFinite(schoolLatitude) || !Number.isFinite(schoolLongitude)) {
+    throw new AppError(
+      500,
+      'Validasi GPS aktif tetapi lokasi sekolah (school_latitude/school_longitude) belum dikonfigurasi admin'
+    );
+  }
+
+  const distanceMeters = calculateDistanceMeters(
+    payload.latitude,
+    payload.longitude,
+    schoolLatitude,
+    schoolLongitude
+  );
+  const roundedDistance = Math.round(distanceMeters * 100) / 100;
+
+  if (distanceMeters > radiusMeters) {
+    throw new AppError(
+      403,
+      `Lokasi di luar radius sekolah (jarak: ${roundedDistance} m, radius maksimal: ${radiusMeters} m)`
+    );
+  }
+
+  return roundedDistance;
+}
+
 async function checkIn(userId, payload = {}) {
   const student = await getStudentByUserId(userId);
   const { date, time, datetime } = nowInSchoolTimezone();
@@ -47,6 +108,12 @@ async function checkIn(userId, payload = {}) {
   const startTime = await schoolConfig.getSetting('school_start_time', '07:00:00');
   const status = determineStatus(time, startTime);
 
+  // Phase 14: validasi geofencing GPS — throw AppError (422/403/500)
+  // kalau ditolak, SEBELUM baris attendance ditulis. Kalau GPS
+  // validation nonaktif, distanceMeters = null (tidak ada perubahan
+  // perilaku dari sebelum Phase 14).
+  const distanceMeters = await validateGeofence(payload);
+
   if (existing.length > 0) {
     // Row sudah ada tapi check_in kosong (kasus jarang — mis. dibuat
     // manual oleh admin sebagai catatan izin/sakit sebelum siswa
@@ -54,11 +121,13 @@ async function checkIn(userId, payload = {}) {
     await db.query(
       `UPDATE student_attendance
        SET check_in = ?, check_in_status = ?, check_in_latitude = ?, check_in_longitude = ?,
-           check_in_accuracy = ?, check_in_method = 'manual', notes = COALESCE(?, notes)
+           check_in_accuracy = ?, check_in_distance_meters = ?, check_in_method = 'manual',
+           notes = COALESCE(?, notes)
        WHERE id = ?`,
       [
         datetime, status,
         payload.latitude ?? null, payload.longitude ?? null, payload.accuracy ?? null,
+        distanceMeters,
         payload.notes ?? null,
         existing[0].id,
       ]
@@ -68,11 +137,12 @@ async function checkIn(userId, payload = {}) {
       await db.query(
         `INSERT INTO student_attendance
            (student_id, date, check_in, check_in_status, check_in_latitude, check_in_longitude,
-            check_in_accuracy, check_in_method, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?)`,
+            check_in_accuracy, check_in_distance_meters, check_in_method, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)`,
         [
           student.id, date, datetime, status,
           payload.latitude ?? null, payload.longitude ?? null, payload.accuracy ?? null,
+          distanceMeters,
           payload.notes ?? null,
         ]
       );
@@ -128,14 +198,20 @@ async function checkOut(userId, payload = {}) {
   // dipakai di alur self-service ini.
   const status = 'present';
 
+  // Phase 14: validasi geofencing GPS, sama seperti checkIn — kalau
+  // GPS validation nonaktif, distanceMeters = null.
+  const distanceMeters = await validateGeofence(payload);
+
   const result = await db.query(
     `UPDATE student_attendance
      SET check_out = ?, check_out_status = ?, check_out_latitude = ?, check_out_longitude = ?,
-         check_out_accuracy = ?, check_out_method = 'manual', notes = COALESCE(?, notes)
+         check_out_accuracy = ?, check_out_distance_meters = ?, check_out_method = 'manual',
+         notes = COALESCE(?, notes)
      WHERE id = ? AND check_out IS NULL`,
     [
       datetime, status,
       payload.latitude ?? null, payload.longitude ?? null, payload.accuracy ?? null,
+      distanceMeters,
       payload.notes ?? null,
       rows[0].id,
     ]
@@ -205,4 +281,4 @@ async function getHistory(userId, { page, limit, offset, dateFrom, dateTo }) {
   return { items: rows, meta: buildMeta({ page, limit, total: totalRows[0].total }) };
 }
 
-module.exports = { checkIn, checkOut, getToday, getHistory };
+module.exports = { checkIn, checkOut, getToday, getHistory, validateGeofence };

@@ -192,11 +192,15 @@ CREATE TABLE `student_attendance` (
   `check_in_latitude` DECIMAL(10,7) DEFAULT NULL,
   `check_in_longitude` DECIMAL(10,7) DEFAULT NULL,
   `check_in_accuracy` DECIMAL(8,2) DEFAULT NULL,
+  `check_in_distance_meters` DECIMAL(8,2) DEFAULT NULL COMMENT 'Jarak (meter) dari titik sekolah saat check-in, hasil Haversine (Phase 14)',
   `check_out_latitude` DECIMAL(10,7) DEFAULT NULL,
   `check_out_longitude` DECIMAL(10,7) DEFAULT NULL,
   `check_out_accuracy` DECIMAL(8,2) DEFAULT NULL,
+  `check_out_distance_meters` DECIMAL(8,2) DEFAULT NULL COMMENT 'Jarak (meter) dari titik sekolah saat check-out, hasil Haversine (Phase 14)',
   `check_in_method` VARCHAR(30) DEFAULT NULL COMMENT 'manual/qr/dll',
+  `check_in_face_verified` TINYINT(1) DEFAULT NULL COMMENT 'NULL = tidak diverifikasi, 1 = wajah cocok, 0 = tidak cocok (lolos via override) — Phase 14',
   `check_out_method` VARCHAR(30) DEFAULT NULL,
+  `check_out_face_verified` TINYINT(1) DEFAULT NULL COMMENT 'NULL = tidak diverifikasi, 1 = wajah cocok, 0 = tidak cocok (lolos via override) — Phase 14',
   `notes` TEXT DEFAULT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -266,6 +270,47 @@ CREATE TABLE `notification_logs` (
   PRIMARY KEY (`id`),
   KEY `idx_notification_logs_type` (`type`),
   KEY `idx_notification_logs_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 13. STUDENT_FACE_ENCODINGS — vector wajah siswa (Phase 14)
+-- ============================================================
+DROP TABLE IF EXISTS `student_face_encodings`;
+CREATE TABLE `student_face_encodings` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id` INT UNSIGNED NOT NULL,
+  `encoding` JSON NOT NULL COMMENT 'Vector encoding wajah (array of float), hasil model face recognition',
+  `encoding_model` VARCHAR(50) DEFAULT NULL COMMENT 'Nama/versi model yang menghasilkan encoding, mis. face-api-v1',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_student_face_encodings_student` (`student_id`),
+  CONSTRAINT `fk_student_face_encodings_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- 14. FACE_OVERRIDE_LOGS — audit trail override verifikasi wajah (Phase 14)
+-- ============================================================
+DROP TABLE IF EXISTS `face_override_logs`;
+CREATE TABLE `face_override_logs` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id` INT UNSIGNED NOT NULL,
+  `attendance_id` INT UNSIGNED DEFAULT NULL
+    COMMENT 'FK longgar ke student_attendance.id — boleh NULL kalau override terjadi sebelum baris attendance dibuat',
+  `attendance_type` ENUM('check_in','check_out') NOT NULL,
+  `overridden_by` INT UNSIGNED NOT NULL COMMENT 'users.id admin/guru yang melakukan override',
+  `similarity_score` DECIMAL(5,4) DEFAULT NULL COMMENT 'Skor kemiripan wajah saat gagal (0-1), NULL kalau siswa belum enroll',
+  `reason` VARCHAR(255) NOT NULL COMMENT 'Alasan override, wajib diisi manusia (bukan default kosong)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_face_override_logs_student` (`student_id`),
+  KEY `idx_face_override_logs_attendance` (`attendance_id`),
+  CONSTRAINT `fk_face_override_logs_student` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_face_override_logs_user` FOREIGN KEY (`overridden_by`) REFERENCES `users` (`id`)
+    ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -339,7 +384,9 @@ INSERT INTO `school_settings` (`setting_key`, `setting_value`, `description`) VA
 ('notify_parent_on_check_out', 'true', 'Kirim notifikasi saat siswa check-out'),
 ('notify_parent_on_late', 'true', 'Kirim notifikasi tambahan jika siswa terlambat'),
 ('notify_parent_on_absent', 'true', 'Kirim notifikasi jika siswa tidak hadir'),
-('teacher_late_tolerance_minutes', '10', 'Toleransi telat guru dalam menit dari start_time jadwal — setelahnya status = late (Phase 10)');
+('teacher_late_tolerance_minutes', '10', 'Toleransi telat guru dalam menit dari start_time jadwal — setelahnya status = late (Phase 10)'),
+('face_verification_enabled', 'false', 'Aktif/nonaktifkan validasi verifikasi wajah saat siswa check-in/check-out (Phase 14)'),
+('face_match_threshold', '0.6', 'Ambang batas skor kemiripan wajah (cosine similarity, 0-1) — di atas ini dianggap cocok (Phase 14)');
 
 -- ============================================================
 -- END OF SCHEMA
